@@ -1,5 +1,7 @@
 package tc.oc.pgm.match;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -23,10 +25,9 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Listener;
 import org.bukkit.inventory.InventoryHolder;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.potion.PotionEffect;
-import java.time.Duration;
-import java.time.Instant;
 import tc.oc.api.bukkit.friends.OnlineFriends;
 import tc.oc.api.bukkit.users.BukkitUserStore;
 import tc.oc.api.docs.PlayerId;
@@ -38,6 +39,10 @@ import tc.oc.commons.bukkit.chat.ComponentRenderers;
 import tc.oc.commons.bukkit.chat.NameStyle;
 import tc.oc.commons.bukkit.chat.Named;
 import tc.oc.commons.bukkit.chat.PlayerComponent;
+import tc.oc.commons.bukkit.inventory.InventorySlot;
+import tc.oc.commons.bukkit.inventory.InventoryUtils;
+import tc.oc.commons.bukkit.inventory.Slot;
+import tc.oc.commons.bukkit.item.ItemUtils;
 import tc.oc.commons.bukkit.nick.Identity;
 import tc.oc.commons.bukkit.nick.IdentityProvider;
 import tc.oc.commons.bukkit.settings.SettingManagerProvider;
@@ -47,6 +52,8 @@ import tc.oc.commons.core.chat.Component;
 import tc.oc.commons.core.chat.Sound;
 import tc.oc.commons.core.logging.Loggers;
 import tc.oc.commons.core.util.Optionals;
+import tc.oc.pgm.events.ItemTransferEvent;
+import tc.oc.pgm.events.PlayerItemTransferEvent;
 import tc.oc.pgm.events.PlayerResetEvent;
 import tc.oc.pgm.filters.Filterable;
 import tc.oc.pgm.filters.query.IPlayerQuery;
@@ -405,6 +412,25 @@ public class MatchPlayer extends MatchFacetContext<MatchPlayerFacet> implements 
         if(!interact) bukkit.leaveVehicle();
         bukkit.setAffectsSpawning(interact);
         bukkit.setCollidesWithEntities(interact);
+    }
+
+    public void giveItem(ItemStack stack) {
+        InventoryUtils.chooseStorageSlots(getInventory(), stack)
+                .forEach((slot, partial) -> giveItem(slot, partial, true));
+    }
+
+    public boolean giveItem(Slot slot, ItemStack stack, boolean combine) {
+        final PlayerItemTransferEvent event = new PlayerItemTransferEvent(null, ItemTransferEvent.Type.PLUGIN, getBukkit(),
+                Optional.empty(),
+                Optional.of(new InventorySlot<>(getInventory(), slot)),
+                stack, null, stack.getAmount(), null);
+        getMatch().callEvent(event);
+        if(event.isCancelled()) return false;
+
+        stack = event.getItemStack().clone();
+        stack.setAmount(event.getQuantity() + (combine ? ItemUtils.amount(slot.getItem(this)) : 0));
+        slot.putItem(this, stack);
+        return true;
     }
 
     public void clearInventory() {

@@ -6,7 +6,9 @@ import java.util.stream.Stream;
 import javax.inject.Inject;
 
 import com.google.common.collect.Range;
+import org.bukkit.Physical;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.map.MapView;
 import org.jdom2.Element;
 import tc.oc.commons.bukkit.inventory.ArmorType;
 import tc.oc.commons.bukkit.inventory.Slot;
@@ -46,7 +48,6 @@ public class KitDefinitionParser extends MagicMethodFeatureParser<Kit> implement
     @Inject protected KitParser kitParser;
     @Inject protected PropertyBuilderFactory<Boolean, ?> booleanParser;
     @Inject protected MapLogger mapLogger;
-    @Inject protected ItemModifier itemModifier;
 
     private Stream<Kit> parseParentKits(Element el) throws InvalidXMLException {
         return Node.attributes(el, "parent", "parents")
@@ -74,9 +75,12 @@ public class KitDefinitionParser extends MagicMethodFeatureParser<Kit> implement
     }
 
     protected Kit makeItemKit(Optional<Slot.Player> slot, ItemStack item) throws InvalidXMLException {
-        final ItemStack modded = itemModifier.modify(item).immutableCopy();
-        return slot.map(s -> (Kit) new SlotItemKit(modded, s))
-                   .orElseGet(() -> new FreeItemKit(modded));
+        return makeItemKit(slot, new StaticItemFactory(item.immutableCopy()));
+    }
+
+    protected Kit makeItemKit(Optional<Slot.Player> slot, ItemFactory<Physical> itemFactory) throws InvalidXMLException {
+        return slot.map(s -> (Kit) new SlotItemKit(itemFactory, s))
+                .orElseGet(() -> new FreeItemKit(itemFactory));
     }
 
     public Kit parseArmorKit(Element el, ArmorType type) throws InvalidXMLException {
@@ -96,6 +100,14 @@ public class KitDefinitionParser extends MagicMethodFeatureParser<Kit> implement
     @MethodParser
     public Kit book(Element el) throws InvalidXMLException {
         return makeItemKit(parseSlot(el), itemParser.parseBook(el));
+    }
+
+    @MethodParser
+    public Kit map(Element el) throws InvalidXMLException {
+        return makeItemKit(parseSlot(el), new MapItemFactory(itemParser.parseMap(el),
+                XMLUtils.parseNumber(Node.fromRequiredAttr(el, "x-center"), Integer.class),
+                XMLUtils.parseNumber(Node.fromRequiredAttr(el, "z-center"), Integer.class),
+                XMLUtils.parseEnum(Node.fromRequiredAttr(el, "scale"), MapView.Scale.class, "Scale")));
     }
 
     @MethodParser

@@ -43,7 +43,7 @@ abstract class KitRuleImpl extends FeatureDefinition.Impl implements KitRule {
         final FilterMatchModule fmm = match.needMatchModule(FilterMatchModule.class);
         switch(action()) {
             case GIVE:
-                fmm.onRise(MatchPlayer.class, filter(), kit()::apply);
+                fmm.onRise(MatchPlayer.class, filter(), (player) -> player.facet(KitPlayerFacet.class).applyKit(kit()));
                 break;
 
             case TAKE:
@@ -53,7 +53,7 @@ abstract class KitRuleImpl extends FeatureDefinition.Impl implements KitRule {
             case LEND:
                 fmm.onChange(MatchPlayer.class, filter(), (player, response) -> {
                     if(response) {
-                        kit().apply(player);
+                        player.facet(KitPlayerFacet.class).applyKit(kit());
                     } else {
                         kit().remove(player);
                     }

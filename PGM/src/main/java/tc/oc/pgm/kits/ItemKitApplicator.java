@@ -4,19 +4,16 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
-import tc.oc.commons.bukkit.inventory.InventorySlot;
 import tc.oc.commons.bukkit.inventory.InventoryUtils;
 import tc.oc.commons.bukkit.inventory.Slot;
 import tc.oc.commons.bukkit.item.ItemUtils;
-import tc.oc.pgm.events.ItemTransferEvent;
-import tc.oc.pgm.events.PlayerItemTransferEvent;
+import tc.oc.pgm.itemmeta.ItemModifier;
 import tc.oc.pgm.match.MatchPlayer;
 
 public class ItemKitApplicator {
@@ -37,14 +34,14 @@ public class ItemKitApplicator {
         return ItemUtils.isNothing(softItems.get(slot));
     }
 
-    public void apply(MatchPlayer player) {
+    public void apply(MatchPlayer player, ItemModifier itemModifier) {
         final PlayerInventory inv = player.getInventory();
 
         // Place forced items first
-        hardItems.forEach((slot, stack) -> fireEventAndTransfer(player, slot, stack, false));
+        hardItems.forEach((slot, stack) -> player.giveItem(slot, itemModifier.modifyCopy(stack), false));
 
-        final Map<Slot, ItemStack> softItems = new HashMap<>(Maps.transformValues(this.softItems, ItemStack::clone));
-        final List<ItemStack> freeItems = new ArrayList<>(Lists.transform(this.freeItems, ItemStack::clone));
+        final Map<Slot, ItemStack> softItems = new HashMap<>(Maps.transformValues(this.softItems, itemModifier::modifyCopy));
+        final List<ItemStack> freeItems = new ArrayList<>(Lists.transform(this.freeItems, itemModifier::modifyCopy));
         final Iterable<ItemStack> kitItems = Iterables.concat(softItems.values(), freeItems);
 
         // Tools in the player's inv are repaired using matching tools in the kit with less damage
@@ -91,7 +88,7 @@ public class ItemKitApplicator {
             InventoryUtils.similar(inv, kitStack).forEach(slot -> {
                 final int quantity = slot.maxTransferrableIn(kitStack, inv);
                 if(quantity > 0) {
-                    fireEventAndTransfer(player, slot, kitStack, true);
+                    player.giveItem(slot, kitStack, true);
                     ItemUtils.addAmount(kitStack, -quantity);
                 }
             });
@@ -102,7 +99,7 @@ public class ItemKitApplicator {
         softItems.forEach((kitSlot, kitStack) -> {
             if(kitStack.getAmount() > 0) {
                 if(kitSlot.isEmpty(inv)) {
-                    fireEventAndTransfer(player, kitSlot, kitStack, false);
+                    player.giveItem(kitSlot, kitStack, false);
                 } else {
                     freeItems.add(kitStack);
                 }
@@ -111,25 +108,7 @@ public class ItemKitApplicator {
 
         // Add free items to the inventory one at a time, firing an event
         // for each partial stack transferred.
-        freeItems.forEach(stack -> fireEventAndTransfer(player, stack));
+        freeItems.forEach(player::giveItem);
     }
 
-    public static void fireEventAndTransfer(MatchPlayer player, ItemStack stack) {
-        InventoryUtils.chooseStorageSlots(player.getInventory(), stack)
-                      .forEach((slot, partial) -> fireEventAndTransfer(player, slot, partial, true));
-    }
-
-    public static boolean fireEventAndTransfer(MatchPlayer player, Slot slot, ItemStack stack, boolean combine) {
-        final PlayerItemTransferEvent event = new PlayerItemTransferEvent(null, ItemTransferEvent.Type.PLUGIN, player.getBukkit(),
-                                                                          Optional.empty(),
-                                                                          Optional.of(new InventorySlot<>(player.getInventory(), slot)),
-                                                                          stack, null, stack.getAmount(), null);
-        player.getMatch().callEvent(event);
-        if(event.isCancelled()) return false;
-
-        stack = event.getItemStack().clone();
-        stack.setAmount(event.getQuantity() + (combine ? ItemUtils.amount(slot.getItem(player)) : 0));
-        slot.putItem(player, stack);
-        return true;
-    }
 }

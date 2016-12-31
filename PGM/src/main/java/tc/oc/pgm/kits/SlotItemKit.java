@@ -1,5 +1,6 @@
 package tc.oc.pgm.kits;
 
+import org.bukkit.Physical;
 import org.bukkit.inventory.ItemStack;
 import tc.oc.commons.bukkit.inventory.Slot;
 import tc.oc.pgm.match.MatchPlayer;
@@ -13,13 +14,18 @@ public class SlotItemKit extends FreeItemKit {
         this.slot = slot;
     }
 
+    public SlotItemKit(ItemFactory<Physical> item, Slot.Player slot) {
+        super(item);
+        this.slot = slot;
+    }
+
     public Slot.Player slot() {
         return slot;
     }
 
     @Override
     public void apply(MatchPlayer player, boolean force, ItemKitApplicator items) {
-        items.put(slot, item, force);
+        items.put(slot, getItem(player), force);
     }
 
 }

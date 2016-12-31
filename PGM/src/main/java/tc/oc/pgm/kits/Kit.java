@@ -1,10 +1,8 @@
 package tc.oc.pgm.kits;
 
-import org.bukkit.entity.Player;
 import tc.oc.pgm.features.FeatureDefinition;
 import tc.oc.pgm.features.FeatureInfo;
 import tc.oc.pgm.match.MatchPlayer;
-import tc.oc.pgm.match.MatchScope;
 
 @FeatureInfo(name = "kit")
 public interface Kit extends FeatureDefinition {
@@ -29,34 +27,6 @@ public interface Kit extends FeatureDefinition {
 
     default boolean isRemovable() {
         return false;
-    }
-
-    default void apply(MatchPlayer player) {
-        apply(player, false);
-    }
-
-    default void apply(MatchPlayer player, boolean force) {
-        final ItemKitApplicator items = new ItemKitApplicator();
-        apply(player, force, items);
-        items.apply(player);
-
-        /**
-         * When max health is lowered by an item attribute or potion effect, the client can
-         * go into an inconsistent state that has strange effects, like the death animation
-         * playing when the player isn't dead. It is probably related to this bug:
-         *
-         * https://bugs.mojang.com/browse/MC-19690
-         *
-         * This appears to fix the client state, for reasons that are unclear. The one tick
-         * delay is necessary. Any less and getMaxHealth will not reflect whatever was
-         * applied in the kit to modify it.
-         */
-        final Player bukkit = player.getBukkit();
-        player.getMatch().getScheduler(MatchScope.LOADED).createDelayedTask(1, () -> {
-            if(bukkit.isOnline() && !player.isDead() && bukkit.getMaxHealth() < 20) {
-                bukkit.setHealth(Math.min(bukkit.getHealth(), bukkit.getMaxHealth()));
-            }
-        });
     }
 
     abstract class Impl extends FeatureDefinition.Impl implements Kit {}

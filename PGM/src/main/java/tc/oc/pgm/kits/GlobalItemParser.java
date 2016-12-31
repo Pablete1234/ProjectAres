@@ -79,6 +79,10 @@ public class GlobalItemParser implements ElementParser<ItemStack> {
         return parseItem(el, Material.WRITTEN_BOOK);
     }
 
+    public ItemStack parseMap(Element el) throws InvalidXMLException {
+        return parseItem(el, Material.MAP);
+    }
+
     public ItemStack parseHead(Element el) throws InvalidXMLException {
         return parseItem(el, Material.SKULL_ITEM, (short) 3);
     }

@@ -16,7 +16,7 @@ import tc.oc.pgm.events.ListenerScope;
 import tc.oc.pgm.events.MatchPlayerDeathEvent;
 import tc.oc.pgm.events.PlayerPartyChangeEvent;
 import tc.oc.pgm.filters.query.DamageQuery;
-import tc.oc.pgm.kits.ItemKitApplicator;
+import tc.oc.pgm.kits.KitPlayerFacet;
 import tc.oc.pgm.match.Match;
 import tc.oc.pgm.match.MatchModule;
 import tc.oc.pgm.match.MatchPlayer;
@@ -55,8 +55,8 @@ public class KillRewardMatchModule extends MatchModule implements Listener {
     public void giveRewards(MatchPlayer killer, Collection<KillReward> rewards) {
         rewards.forEach(reward -> {
             // Apply kit first so it can not override reward items
-            reward.kit.apply(killer);
-            reward.items.forEach(stack -> ItemKitApplicator.fireEventAndTransfer(killer, stack));
+            killer.facet(KitPlayerFacet.class).applyKit(reward.kit);
+            reward.items.forEach(killer::giveItem);
         });
     }
 
