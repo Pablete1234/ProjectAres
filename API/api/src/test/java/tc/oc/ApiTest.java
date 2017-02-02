@@ -25,6 +25,8 @@ import tc.oc.api.servers.NullServerService;
 import tc.oc.api.servers.ServerService;
 import tc.oc.api.sessions.NullSessionService;
 import tc.oc.api.sessions.SessionService;
+import tc.oc.api.tourney.NullTourneyConfiguration;
+import tc.oc.api.tourney.TourneyConfiguration;
 import tc.oc.api.users.NullUserService;
 import tc.oc.api.users.UserService;
 import tc.oc.commons.core.inject.HybridManifest;
@@ -49,6 +51,7 @@ public abstract class ApiTest {
                 .toInstance(Executors.newSingleThreadExecutor());
 
             bind(ApiConfiguration.class).toInstance(() -> "primary_queue");
+            bind(TourneyConfiguration.class).to(NullTourneyConfiguration.class);
 
             publicBinder().forOptional(ServerService.class).setBinding().to(NullServerService.class);
             publicBinder().forOptional(UserService.class).setBinding().to(NullUserService.class);

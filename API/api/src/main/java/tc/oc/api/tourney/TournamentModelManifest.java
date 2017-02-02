@@ -3,6 +3,7 @@ package tc.oc.api.tourney;
 import com.google.inject.multibindings.OptionalBinder;
 import tc.oc.api.docs.Tournament;
 import tc.oc.api.docs.team;
+import tc.oc.api.http.HttpManifest;
 import tc.oc.api.model.ModelBinders;
 import tc.oc.commons.core.inject.HybridManifest;
 
@@ -19,7 +20,11 @@ public class TournamentModelManifest extends HybridManifest implements ModelBind
             model.queryService().setBinding().to(TournamentService.class);
         });
 
+        // TODO: this probably should be in another place
+        install(new HttpManifest());
+        bindAndExpose(LocalTournamentService.class);
+
         OptionalBinder.newOptionalBinder(publicBinder(), TournamentService.class)
-                      .setDefault().to(NullTournamentService.class);
+                      .setDefault().to(LocalTournamentService.class);
     }
 }

@@ -12,7 +12,9 @@ import tc.oc.api.minecraft.maps.MinecraftMapsManifest;
 import tc.oc.api.minecraft.model.MinecraftModelsManifest;
 import tc.oc.api.minecraft.servers.MinecraftServersManifest;
 import tc.oc.api.minecraft.sessions.MinecraftSessionsManifest;
+import tc.oc.api.minecraft.tourney.TourneyConfigurationImpl;
 import tc.oc.api.minecraft.users.MinecraftUsersManifest;
+import tc.oc.api.tourney.TourneyConfiguration;
 import tc.oc.commons.core.inject.HybridManifest;
 import tc.oc.commons.core.inject.Manifest;
 import tc.oc.debug.LeakDetectorManifest;
@@ -49,6 +51,8 @@ public final class MinecraftApiManifest extends HybridManifest {
 
         bindAndExpose(ApiConfiguration.class).to(MinecraftApiConfiguration.class);
         bindAndExpose(MinecraftApiConfiguration.class).to(MinecraftApiConfigurationImpl.class);
+
+        bindAndExpose(TourneyConfiguration.class).to(TourneyConfigurationImpl.class);
 
         bindAndExpose(MinecraftService.class).to(MinecraftServiceImpl.class);
         bind(MinecraftServiceImpl.class).asEagerSingleton();

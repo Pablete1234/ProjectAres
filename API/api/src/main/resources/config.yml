@@ -4,6 +4,11 @@ server:
   box: pro                        # local box name
   role: LOBBY                     # ServerDoc.Role value
 
+# Backendless tournament config, NOTE: All urls will get appended after api.http.base-url
+tournament:
+  tournament-url: '' # Url for a JSON tournament file containing all the tournament info, including list of teams
+  entrant-url: ''    # Url for a JSON team file, containing name and list of members, args: {tournament-id}, {team-id}
+
 # HTTP client settings
 api:
   http:
