@@ -195,7 +195,10 @@ public class LocalServerDocument extends StartupServerDocument implements Server
 
     @Override
     public boolean whitelist_enabled() {
-        return minecraftServer.hasWhitelist();
+        // Hack - using white-list=true in server.properties would enable BOTH vanilla and PGM whitelist.
+        // We don't want that, a config in PGM is needed
+        minecraftServer.setWhitelist(true);
+        return false;
     }
 
     @Override

@@ -46,7 +46,7 @@ public class DefaultPermissions {
                 .put("pgm.class"               , true)
                 .put("pgm.class.list"          , true)
                 .put("pgm.class.select"        , true)
-                .put("pgm.join"                , true)
+                .put("pgm.join"                , false)
                 .put("pgm.myteam"              , true)
                 .build();
 
@@ -70,7 +70,7 @@ public class DefaultPermissions {
                 .put("pgm.class.list"              , true)
                 .put("pgm.class.select"            , true)
                 .put("pgm.inventory"               , true)
-                .put("pgm.join"                    , true)
+                .put("pgm.join"                    , false)
                 .put("pgm.myteam"                  , true)
                 .put("worldedit.navigation.*"      , true)
                 .build();
