@@ -1,6 +1,7 @@
 package tc.oc.commons.bukkit.whitelist;
 
 import java.util.Iterator;
+import java.util.List;
 import javax.inject.Inject;
 
 import com.sk89q.minecraft.util.commands.Command;
@@ -12,6 +13,8 @@ import net.md_5.bungee.api.ChatColor;
 import net.md_5.bungee.api.chat.TranslatableComponent;
 import org.bukkit.command.CommandSender;
 import tc.oc.api.docs.PlayerId;
+import tc.oc.api.minecraft.users.OnlinePlayers;
+import tc.oc.commons.core.formatting.StringUtils;
 import tc.oc.minecraft.scheduler.SyncExecutor;
 import tc.oc.commons.bukkit.chat.Audiences;
 import tc.oc.commons.bukkit.chat.ListComponent;
@@ -127,7 +130,7 @@ public class WhitelistCommands implements NestedCommands {
         max = 0
     )
     public void clear(CommandContext args, final CommandSender sender) throws CommandException {
-        whitelist.reset();
+        whitelist.reset(true);
         audiences.get(sender).sendMessage(new TranslatableComponent(whitelist.isEmpty() ? "whitelist.empty" : "whitelist.default"));
     }
 
@@ -160,22 +163,22 @@ public class WhitelistCommands implements NestedCommands {
         min = 1,
         max = 1
     )
-    public void remove(CommandContext args, final CommandSender sender) throws CommandException {
+    public List<String> remove(CommandContext args, final CommandSender sender) throws CommandException {
+        if (args.getSuggestionContext() != null) {
+            return StringUtils.complete(args.getJoinedStrings(0), whitelist.stream().map(PlayerId::username));
+        }
         final String username = args.getString(0);
-        for(Iterator<PlayerId> iter = whitelist.iterator(); iter.hasNext();) {
-            PlayerId playerId = iter.next();
-            if(username.equalsIgnoreCase(playerId.username())) {
-                iter.remove();
-                audiences.get(sender).sendMessage(
-                    new TranslatableComponent(
+        PlayerId playerId = whitelist.stream().filter(player -> username.equalsIgnoreCase(player.username()))
+                .findFirst().orElseThrow(() -> new TranslatableCommandException("whitelist.notFound", username));
+        whitelist.remove(playerId);
+        audiences.get(sender).sendMessage(
+                new TranslatableComponent(
                         "whitelist.remove",
                         new PlayerComponent(identities.currentIdentity(playerId), NameStyle.FANCY)
-                    )
-                );
-                return;
-            }
-        }
-        throw new TranslatableCommandException("whitelist.notFound", username);
+                )
+        );
+        
+        return null;
     }
 
     @Command(

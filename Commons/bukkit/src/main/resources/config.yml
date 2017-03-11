@@ -23,6 +23,9 @@ join-messages:
   # realms: []
   # families: []
 
+whitelist:
+  reset-on-restart: false
+
 reports:
   enabled: true
   cooldown: 0s

@@ -88,6 +88,9 @@ import tc.oc.commons.bukkit.util.PlayerStatesImpl;
 import tc.oc.commons.bukkit.whisper.WhisperManifest;
 import tc.oc.commons.bukkit.whitelist.Whitelist;
 import tc.oc.commons.bukkit.whitelist.WhitelistCommands;
+import tc.oc.commons.bukkit.whitelist.WhitelistConfig;
+import tc.oc.commons.bukkit.whitelist.WhitelistConfigImpl;
+import tc.oc.commons.bukkit.whitelist.WhitelistManifest;
 import tc.oc.commons.core.CommonsCoreManifest;
 import tc.oc.commons.core.chat.Component;
 import tc.oc.commons.core.inject.HybridManifest;
@@ -111,6 +114,7 @@ public final class CommonsBukkitManifest extends HybridManifest {
         install(new NavigatorManifest());
         install(new RaindropManifest());
         install(new PunishmentManifest());
+        install(new WhitelistManifest());
 
         // These are already bound as facets, so they only need to be exposed
         expose(PlayerFreezer.class);
@@ -183,9 +187,6 @@ public final class CommonsBukkitManifest extends HybridManifest {
         facets.register(TraceCommands.class);
         facets.register(TraceCommands.Parent.class);
         facets.register(UserCommands.class);
-        facets.register(Whitelist.class);
-        facets.register(WhitelistCommands.class);
-        facets.register(WhitelistCommands.Parent.class);
         facets.register(WindowManager.class);
         facets.register(AppealAlertListener.class);
         facets.register(SuspendListener.class);

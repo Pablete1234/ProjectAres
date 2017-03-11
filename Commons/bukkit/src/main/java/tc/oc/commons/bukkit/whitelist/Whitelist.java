@@ -1,7 +1,11 @@
 package tc.oc.commons.bukkit.whitelist;
 
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
+import javax.annotation.Nonnull;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -17,6 +21,8 @@ import tc.oc.api.bukkit.users.BukkitUserStore;
 import tc.oc.api.bukkit.users.OnlinePlayers;
 import tc.oc.api.docs.PlayerId;
 import tc.oc.api.docs.Server;
+import tc.oc.api.docs.UserId;
+import tc.oc.api.minecraft.users.LocalUserDocument;
 import tc.oc.commons.bukkit.chat.ComponentRenderContext;
 import tc.oc.commons.bukkit.event.UserLoginEvent;
 import tc.oc.commons.bukkit.event.WhitelistStateChangeEvent;
@@ -31,15 +37,17 @@ public class Whitelist extends ForwardingSet<PlayerId> implements PluginFacet, L
     private final BukkitUserStore userStore;
     private final OnlinePlayers onlinePlayers;
     private final ComponentRenderContext renderer;
+    private final WhitelistConfig config;
 
     private boolean enabled;
     private final Set<PlayerId> whitelist = new HashSet<>();
 
-    @Inject Whitelist(Server localServer, BukkitUserStore userStore, OnlinePlayers onlinePlayers, ComponentRenderContext renderer) {
+    @Inject Whitelist(Server localServer, BukkitUserStore userStore, OnlinePlayers onlinePlayers, ComponentRenderContext renderer, WhitelistConfig config) {
         this.localServer = localServer;
         this.userStore = userStore;
         this.onlinePlayers = onlinePlayers;
         this.renderer = renderer;
+        this.config = config;
     }
 
     @Override
@@ -49,12 +57,15 @@ public class Whitelist extends ForwardingSet<PlayerId> implements PluginFacet, L
 
     @Override
     public void enable() {
-        reset();
+        reset(config.resetOnRestart());
         setEnabled(localServer.whitelist_enabled());
+        Bukkit.setWhitelist(false); // Let's handle the whitelist ourselves
     }
-
-    public void reset() {
-        clear();
+      
+    public void reset(boolean clearVanilla) {
+        if (clearVanilla) clear(); // Clear both our whitelist and the vanilla one
+        else whitelist.clear();    // Clear only our whitelist
+        addAll(Bukkit.getWhitelistedPlayers().stream().map(LocalUserDocument::new).collect(Collectors.toSet()));
         if(localServer.team() != null) {
             addAll(localServer.team().members());
         }
@@ -103,4 +114,42 @@ public class Whitelist extends ForwardingSet<PlayerId> implements PluginFacet, L
             event.disallow(PlayerLoginEvent.Result.KICK_WHITELIST, new TranslatableComponent("whitelist.kicked"));
         }
     }
+    
+    /*
+     * Methods for adding/removing players to/from the whitelist, therse will also update the vanilla whitelist
+     */
+    @Override
+    public boolean add(@Nonnull PlayerId playerId) {
+        boolean added = super.add(playerId);
+        if (added) {
+            Bukkit.getOfflinePlayer(UUID.fromString(playerId.player_id())).setWhitelisted(true);
+        }
+        return added;
+    }
+    
+    @Override
+    public boolean remove(@Nonnull Object playerId) {
+        boolean removed = super.remove(playerId);
+        if (removed && playerId instanceof UserId) {
+            Bukkit.getOfflinePlayer(UUID.fromString(((UserId) playerId).player_id())).setWhitelisted(false);
+        }
+        return removed;
+    }
+    
+    @Override
+    public boolean addAll(@Nonnull Collection<? extends PlayerId> playerIds) {
+        return standardAddAll(playerIds);
+    }
+    
+    @Override
+    public boolean removeAll(@Nonnull Collection<?> playerIds) {
+        return standardRemoveAll(playerIds);
+    }
+    
+    @Override
+    public void clear() {
+        Bukkit.getWhitelistedPlayers().forEach(pl -> pl.setWhitelisted(false));
+        super.clear();
+    }
+        
 }

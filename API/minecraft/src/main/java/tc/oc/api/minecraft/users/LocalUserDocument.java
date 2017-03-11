@@ -27,7 +27,7 @@ public class LocalUserDocument extends SimplePlayerId implements User {
         this.ip = ip;
     }
 
-    LocalUserDocument(tc.oc.minecraft.api.user.User user) {
+    public LocalUserDocument(tc.oc.minecraft.api.user.User user) {
         this(user.getUniqueId(),
              user.getName(),
              user.onlinePlayer()
