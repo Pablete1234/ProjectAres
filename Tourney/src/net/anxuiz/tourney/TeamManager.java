@@ -5,7 +5,9 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.UUID;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 
@@ -23,6 +25,7 @@ import tc.oc.api.bukkit.users.BukkitUserStore;
 import tc.oc.api.docs.Entrant;
 import tc.oc.api.docs.PlayerId;
 import tc.oc.api.docs.virtual.MatchDoc;
+import tc.oc.api.docs.virtual.UserDoc;
 import tc.oc.api.tourney.TeamUtils;
 import tc.oc.commons.core.IterableUtils;
 import tc.oc.commons.core.logging.Loggers;
@@ -155,11 +158,25 @@ public class TeamManager {
         return null;
     }
 
-    public @Nullable Entrant getEntrant(PlayerId playerId) {
+    public @Nullable Entrant getEntrant(UserDoc.Identity playerId) {
         for(Entrant entrant : this.teamMap.values()) {
-            if(entrant.members().contains(playerId)) return entrant;
+            if (isInTeam(entrant, playerId)) return entrant;
         }
         return null;
+    }
+    
+    public static boolean isInTeam(Entrant entrant, UserDoc.Identity playerId) {
+        return isInTeam(entrant, playerId.uuid());
+    }
+    
+    public static boolean isInTeam(Entrant entrant, UUID uuid) {
+        return entrant.members().stream().map(TeamManager::getId).collect(Collectors.toList()).contains(uuid);
+    }
+    
+    private static UUID getId(PlayerId id) {
+        return UUID.fromString(id.player_id().replace("_","").replace("-","").replaceAll(
+                "(\\w{8})(\\w{4})(\\w{4})(\\w{4})(\\w{12})",
+                "$1-$2-$3-$4-$5"));
     }
 
     /**
@@ -169,9 +186,9 @@ public class TeamManager {
         return getTeam(userStore.getUser(player));
     }
 
-    public @Nullable Team getTeam(PlayerId playerId) {
+    public @Nullable Team getTeam(UserDoc.Identity playerId) {
         for(Map.Entry<Team, Entrant> entry : this.teamMap.entrySet()) {
-            if(entry.getValue().members().contains(playerId)) return entry.getKey();
+            if (isInTeam(entry.getValue(), playerId)) return entry.getKey();
         }
         return null;
     }

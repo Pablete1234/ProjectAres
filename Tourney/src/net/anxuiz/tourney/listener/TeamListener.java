@@ -69,7 +69,7 @@ public class TeamListener implements Listener {
         final int playerCount = (int) onlinePlayers.all()
                                                    .stream()
                                                    .filter(player -> !player.equals(event.getPlayer()) &&
-                                                                     participation.members().contains(userStore.playerId(player)))
+                                                                     TeamManager.isInTeam(participation, userStore.getUser(player)))
                                                    .count();
 
         int maxPlayers = tournament.max_players_per_match();
@@ -90,7 +90,7 @@ public class TeamListener implements Listener {
         TeamMatchModule tmm = match.needMatchModule(TeamMatchModule.class);
 
         for(MatchPlayer player : match.getPlayers()) {
-            if(event.getEntrant().members().contains(player.getPlayerId())) {
+            if(TeamManager.isInTeam(event.getEntrant(), player.getUniqueId())) {
                 tourney.getLogger().info("Adding player '" + player.getDisplayName() + "' to team '" + event.getTeam().getName() + "'");
                 tmm.forceJoin(player, event.getTeam());
             }
