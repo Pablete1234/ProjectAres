@@ -2,12 +2,10 @@ package tc.oc.pgm.payload;
 
 import net.md_5.bungee.api.ChatColor;
 import org.bukkit.*;
-import org.bukkit.block.BlockFace;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Minecart;
 import org.bukkit.event.HandlerList;
 import org.bukkit.material.MaterialData;
-import org.bukkit.material.Rails;
 import org.bukkit.util.Vector;
 import tc.oc.api.docs.virtual.MatchDoc;
 import tc.oc.commons.bukkit.util.BukkitUtils;
@@ -43,19 +41,14 @@ public class Payload extends OwnedGoal<PayloadDefinition> {
 
     private Location payloadLocation;
 
-    private int railSize = 0;
-
     protected Minecart payloadEntity;
     protected ArmorStand labelEntity;
 
-    private Path headPath;
-    private Path tailPath;
+    private PayloadTrack track;
 
-    private Path currentPath;
-
-    public List<Path> allCheckpoints = new LinkedList<>();
-    public Set<Path> friendlyReachedCheckpoints = new HashSet<>();
-    public Set<Path> enemyReachedCheckpoints = new HashSet<>();
+    public List<Vector> allCheckpoints = new LinkedList<>();
+    public Set<Vector> friendlyReachedCheckpoints = new HashSet<>();
+    public Set<Vector> enemyReachedCheckpoints = new HashSet<>();
 
     // This is set false after the first state change if definition.permanent == true
     protected boolean capturable = true;
@@ -264,12 +257,11 @@ public class Payload extends OwnedGoal<PayloadDefinition> {
         }
 
         double speed = isInEnemyControl() ? this.definition.getEnemySpeed() : this.definition.getFriendlySpeed();
-        if (!isInEnemyControl() && this.currentPath.hasPrevious() && this.currentPath.previous().isCheckpoint() && !this.friendlyReachedCheckpoints.contains(this.currentPath)) {
+        if (!isInEnemyControl() && track.hasPrevious() && track.isPreviousCheckpoint() && !this.friendlyReachedCheckpoints.contains(track.current())) {
             return;
         }
 
-        Path finalPath = isInEnemyControl() ? this.tailPath : this.headPath;
-        Location finalLocation = finalPath.getLocation();
+        Vector finalLocation = isInEnemyControl() ? this.track.tail() : this.track.head();
         float points = isInEnemyControl() ? this.getDefinition().getPoints() : this.getDefinition().getFriendlyPoints();
 
         if (this.payloadLocation.getX() == finalLocation.getX() &&
@@ -302,29 +294,30 @@ public class Payload extends OwnedGoal<PayloadDefinition> {
     }
 
     private void move(double distance) {
-        boolean hasNext = isInEnemyControl() ? currentPath.hasNext() : currentPath.hasPrevious();
+        boolean isInEnemyControl = isInEnemyControl();
+        boolean hasNext = isInEnemyControl ? track.hasNext() : track.hasPrevious();
         if (!hasNext) { // Path is over
-            this.payloadLocation.setPosition(currentPath.getLocation().position());
+            this.payloadLocation.setPosition(track.current());
             return;
         }
 
-        if (currentPath.isCheckpoint()) {
+        if (track.isCheckpoint()) {
             if (this.definition.hasFriendlyCheckpoints()) {
-                if (isInEnemyControl() && this.enemyReachedCheckpoints.add(currentPath)) {
-                    friendlyReachedCheckpoints.remove(currentPath);
+                if (isInEnemyControl() && this.enemyReachedCheckpoints.add(track.current())) {
+                    friendlyReachedCheckpoints.remove(track.current());
                     final Component message = new Component(ChatColor.GRAY);
                     message.translate("match.payload.checkpoint",
                             this.getCurrentOwner().getComponentName());
                     match.sendMessage(message);
-                } else if (!isInEnemyControl() && this.friendlyReachedCheckpoints.add(currentPath)) {
-                    enemyReachedCheckpoints.remove(currentPath);
+                } else if (!isInEnemyControl() && this.friendlyReachedCheckpoints.add(track.current())) {
+                    enemyReachedCheckpoints.remove(track.current());
                     final Component message = new Component(ChatColor.GRAY);
                     message.translate("match.payload.checkpoint",
                             this.getCurrentOwner().getComponentName());
                     match.sendMessage(message);
                 }
-            } else if (isInEnemyControl() && this.enemyReachedCheckpoints.add(currentPath)) {
-                friendlyReachedCheckpoints.remove(currentPath);
+            } else if (isInEnemyControl() && this.enemyReachedCheckpoints.add(track.current())) {
+                friendlyReachedCheckpoints.remove(track.current());
                 final Component message = new Component(ChatColor.GRAY);
                 message.translate("match.payload.checkpoint",
                         this.getCurrentOwner().getComponentName());
@@ -332,13 +325,12 @@ public class Payload extends OwnedGoal<PayloadDefinition> {
             }
         }
 
-        Path nextPath = isInEnemyControl() ? currentPath.next() : currentPath.previous();
-        Vector direction = nextPath.getLocation().position().minus(payloadLocation.position()).mutableCopy();
-        double len = direction.length(),
-                extraLen = distance - len;
+        Vector direction = (isInEnemyControl ? track.next() : track.previous()).minus(payloadLocation.position()).mutableCopy();
+        double len = direction.length(), extraLen = distance - len;
         // If there's extra distance, skip calculations, otherwise, move payload proportionally
         if (extraLen > 0) {
-            this.currentPath = nextPath;
+            if (isInEnemyControl) track.forward();
+            else track.backwards();
             move(extraLen);
         } else this.payloadLocation.position().add(direction.multiply(distance / len));
     }
@@ -643,7 +635,7 @@ public class Payload extends OwnedGoal<PayloadDefinition> {
     }
 
     protected void createPayload() {
-        this.makePath();
+        this.track = new PayloadTrack(this);
         this.summonMinecart();
     }
 
@@ -683,266 +675,6 @@ public class Payload extends OwnedGoal<PayloadDefinition> {
         this.labelEntity.setInvulnerable(true);
         this.labelEntity.setMarker(true);
         NMSHacks.enableArmorSlots(this.labelEntity, false);
-    }
-
-    class Path {
-        private int index;
-        private Location location;
-        private Path previousPath;
-        private Path nextPath;
-        private boolean checkpoint;
-
-        Path(Location location, Path previousPath, Path nextPath) {
-            this(0, location, previousPath, nextPath, false);
-        }
-
-        Path(int index, Location location, Path previousPath, Path nextPath) {
-            this(index, location, previousPath, nextPath, false);
-        }
-
-        Path(Location location, Path previousPath, Path nextPath, boolean checkpoint) {
-            this(0, location, previousPath, nextPath, checkpoint);
-        }
-
-        Path(int index, Location location, Path previousPath, Path nextPath, boolean checkpoint) {
-            this.index = index;
-            this.location = location;
-            this.previousPath = previousPath;
-            this.nextPath = nextPath;
-            this.checkpoint = checkpoint;
-        }
-
-        public int getIndex() {
-            return index;
-        }
-
-        public Location getLocation() {
-            return location;
-        }
-
-        public boolean hasPrevious() {
-            return previous() != null;
-        }
-
-        public Path previous() {
-            return previousPath;
-        }
-
-        public void setPrevious(Path previousPath) {
-            this.previousPath = previousPath;
-        }
-
-        public boolean hasNext() {
-            return next() != null;
-        }
-
-        public Path next() {
-            return nextPath;
-        }
-
-        public void setNext(Path nextPath) {
-            this.nextPath = nextPath;
-        }
-
-        public boolean isCheckpoint() {
-            return checkpoint;
-        }
-    }
-
-    protected void makePath() {
-        Location location = this.getStartingLocation().toLocation(getMatch().getWorld());
-
-        //Payload must start on a rail
-        if (!isRails(location.getBlock().getType())) {
-            return;
-        }
-
-        Rails startingRails = (Rails) location.getBlock().getState().getMaterialData();
-
-        if (startingRails.isCurve() || startingRails.isOnSlope()) {
-            return;
-        }
-
-        BlockFace direction = startingRails.getDirection();
-
-        List<Double> differingX = new ArrayList<>();
-        List<Double> differingY = new ArrayList<>();
-        List<Double> differingZ = new ArrayList<>();
-
-        differingY.add(0.0);
-        differingY.add(1.0);
-        differingY.add(-1.0);
-
-        headPath = new Path(this.railSize, location, null, null);
-        this.railSize++;
-
-        Path previousPath = headPath;
-        Path neighborRail = getNewNeighborRail(previousPath, direction, differingX, differingY, differingZ);
-
-        while (neighborRail != null) {
-            previousPath.setNext(neighborRail);
-
-            previousPath = neighborRail;
-
-            differingX.clear();
-            differingZ.clear();
-
-            if (previousPath.getLocation().getBlock().getState().getMaterialData() instanceof Rails) {
-                direction = ((Rails)previousPath.getLocation().getBlock().getState().getMaterialData()).getDirection();
-            } else {
-                direction = null;
-            }
-
-            neighborRail = getNewNeighborRail(previousPath, direction, differingX, differingY, differingZ);
-        }
-
-        tailPath = previousPath;
-
-        Path currentPath = headPath;
-        Path lastPath = null;
-
-        headPath = null;
-
-        boolean reachedMiddle = false;
-        boolean moreRails = currentPath.hasNext();
-        while (moreRails) {
-            Path nextPath = currentPath.next();
-            Location newLocation = currentPath.getLocation().toVector().midpoint(nextPath.getLocation().toVector()).toLocation(getMatch().getWorld());
-            newLocation.setY(Math.max(currentPath.getLocation().getY(), nextPath.getLocation().getY()));
-            Path newPath;
-            if (headPath == null) {
-                Location headLocation = newLocation.clone().add(currentPath.getLocation().subtract(nextPath.getLocation()));
-                headPath = new Path(this.railSize, headLocation, null, null);
-                this.railSize++;
-                newPath = new Path(this.railSize, newLocation, headPath, null);
-                this.railSize++;
-                headPath.setNext(newPath);
-                lastPath = newPath;
-                this.currentPath = headPath;
-            } else {
-                newPath = new Path(this.railSize, newLocation, lastPath, null, currentPath.isCheckpoint());
-
-                this.railSize++;
-                lastPath.setNext(newPath);
-                lastPath = newPath;
-                tailPath = lastPath;
-            }
-
-            if (this.getSpawnLocation().getX() == currentPath.getLocation().getX() &&
-                    this.getSpawnLocation().getY() == currentPath.getLocation().getY() &&
-                    this.getSpawnLocation().getZ() == currentPath.getLocation().getZ()) {
-                reachedMiddle = true;
-                this.currentPath = newPath;
-                if (currentPath.isCheckpoint()) {
-                    this.allCheckpoints.add(lastPath);
-                }
-            } else if (currentPath.isCheckpoint()) {
-                this.allCheckpoints.add(lastPath);
-                boolean add;
-                if (this.definition.hasFriendlyCheckpoints()) {
-                    add = reachedMiddle ? this.friendlyReachedCheckpoints.add(lastPath) : this.enemyReachedCheckpoints.add(lastPath);
-                } else {
-                    add = reachedMiddle ? this.enemyReachedCheckpoints.add(lastPath) : this.friendlyReachedCheckpoints.add(lastPath);
-                }
-            }
-            currentPath = nextPath;
-            moreRails = currentPath.hasNext();
-        }
-
-        Path tail = tailPath;
-        Path beforeTail = tail.previous();
-        Location newLocation = tail.getLocation().getLocation().toVector().midpoint(beforeTail.getLocation().toVector()).toLocation(getMatch().getWorld());
-        newLocation.setY(Math.max(tail.getLocation().getY(), beforeTail.getLocation().getY()));
-        Location tailLocation = newLocation.clone().add(currentPath.getLocation().subtract(beforeTail.getLocation()));
-        tailPath = new Path(tailLocation, tail, null);
-        tail.setNext(tailPath);
-    }
-
-    public boolean isRails(Material material) {
-        return material.equals(Material.RAILS);
-    }
-
-    public boolean isCheckpoint(Material material) {
-        return this.definition.getCheckpointMaterial() != null ?
-                material.equals(this.definition.getCheckpointMaterial().getMaterial()) :
-                material.equals(Material.ACTIVATOR_RAIL) ||
-                material.equals(Material.DETECTOR_RAIL) ||
-                material.equals(Material.POWERED_RAIL);
-    }
-
-    public Path getNewNeighborRail(Path path, BlockFace direction, List<Double> differingX, List<Double> differingY, List<Double> differingZ) {
-        Location previousLocation = null;
-        if (path.previous() != null) {
-            previousLocation = path.previous().getLocation();
-        }
-
-        Location location = path.getLocation();
-
-        if (direction == null) {
-            differingX.add(-1.0);
-            differingX.add(0.0);
-            differingX.add(1.0);
-            differingZ.add(-1.0);
-            differingZ.add(0.0);
-            differingZ.add(1.0);
-        } else if (direction.equals(BlockFace.SOUTH) || direction.equals(BlockFace.NORTH)) {
-            differingZ.add(-1.0);
-            differingZ.add(1.0);
-            differingX.add(0.0);
-        } else if (direction.equals(BlockFace.EAST) || direction.equals(BlockFace.WEST)) {
-            differingX.add(-1.0);
-            differingX.add(1.0);
-            differingZ.add(0.0);
-        } else {
-            Location side = location.clone();
-            side.setZ(side.getZ() + (direction.equals(BlockFace.NORTH_WEST) || direction.equals(BlockFace.NORTH_EAST) ? 1 : -1));
-            if (side.getX() == previousLocation.getX() && side.getZ() == previousLocation.getZ()) {
-                differingX.add(direction.equals(BlockFace.SOUTH_WEST) || direction.equals(BlockFace.NORTH_WEST) ? 1.0 : -1.0);
-                differingZ.add(0.0);
-            } else {
-                differingX.add(0.0);
-                differingZ.add(direction.equals(BlockFace.NORTH_WEST) || direction.equals(BlockFace.NORTH_EAST) ? 1.0 : -1.0);
-            }
-        }
-
-        Location newLocation = location.clone();
-        for (double x : differingX) {
-            for (double y : differingY) {
-                for (double z : differingZ) {
-                    newLocation.add(x, y, z);
-
-                    boolean isCheckpoint = isCheckpoint(newLocation.getBlock().getType());
-
-                    if (isRails(newLocation.getBlock().getType()) || isCheckpoint) {
-                        Path currentPath = path;
-
-                        boolean alreadyExists = false;
-
-                        if (headPath.getLocation().getX() == newLocation.getX() &&
-                                headPath.getLocation().getY() == newLocation.getY() &&
-                                headPath.getLocation().getZ() == newLocation.getZ()) {
-                            alreadyExists = true;
-                        }
-
-                        while (currentPath.hasPrevious()) {
-                            if (currentPath.getLocation().getX() == newLocation.getX() &&
-                                    currentPath.getLocation().getY() == newLocation.getY() &&
-                                    currentPath.getLocation().getZ() == newLocation.getZ()) {
-                                alreadyExists = true;
-                            }
-                            currentPath = currentPath.previous();
-                        }
-
-                        if (!alreadyExists) {
-                            return new Path(newLocation, path, null, isCheckpoint);
-                        }
-                    }
-
-                    newLocation.subtract(x, y, z);
-                }
-            }
-        }
-        return null;
     }
 
     @Override
