@@ -69,6 +69,11 @@ public class Payload extends OwnedGoal<PayloadDefinition> {
     // if changing to the neutral state). When this is zero, the capturer is null.
     protected Duration progress = Duration.ZERO;
 
+    @Override
+    public String getColoredName() {
+        return Optional.ofNullable(this.currentOwner).map(Party::getColor).orElse(COLOR_NEUTRAL_TEAM) + this.definition.getColoredName();
+    }
+
     public Payload(Match match, PayloadDefinition definition) throws ModuleLoadException {
         super(definition, match);
 
