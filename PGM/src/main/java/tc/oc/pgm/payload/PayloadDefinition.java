@@ -5,18 +5,16 @@ import tc.oc.api.docs.virtual.MapDoc;
 import tc.oc.pgm.features.FeatureInfo;
 import tc.oc.pgm.features.GamemodeFeature;
 import tc.oc.pgm.filters.Filter;
-import tc.oc.pgm.goals.GoalDefinition;
-import tc.oc.pgm.goals.GoalDefinitionImpl;
 import tc.oc.pgm.goals.OwnableGoalDefinition;
 import tc.oc.pgm.goals.OwnableGoalDefinitionImpl;
 import tc.oc.pgm.match.Match;
-import tc.oc.pgm.regions.Region;
 import tc.oc.pgm.teams.TeamFactory;
 import tc.oc.pgm.utils.MaterialPattern;
 
 import javax.annotation.Nullable;
 import java.time.Duration;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Stream;
 
 @FeatureInfo(name = "payload",
@@ -59,7 +57,7 @@ public interface PayloadDefinition extends OwnableGoalDefinition<Payload>, Gamem
 
     float getHeight();
 
-    MaterialPattern getCheckpointMaterial();
+    Set<Vector> getCheckpoints();
 
     float getFriendlySpeed();
 
@@ -127,8 +125,8 @@ class PayloadDefinitionImpl extends OwnableGoalDefinitionImpl<Payload> implement
     //The height of the control point of the payload
     private final float height;
 
-    //The material of the checkpoint blocks
-    private final MaterialPattern checkpointMaterial;
+    //The set of different checkpoints
+    private final Set<Vector> checkpoints;
 
     //The speed of the payload when under control of the owning team
     private final float friendlySpeed;
@@ -165,7 +163,7 @@ class PayloadDefinitionImpl extends OwnableGoalDefinitionImpl<Payload> implement
                                  boolean friendlyCheckpoints,
                                  float radius,
                                  float height,
-                                 MaterialPattern checkpointMaterial,
+                                 Set<Vector> checkpoints,
                                  float friendlySpeed,
                                  float enemySpeed,
                                  float points,
@@ -189,7 +187,7 @@ class PayloadDefinitionImpl extends OwnableGoalDefinitionImpl<Payload> implement
         this.friendlyCheckpoints = friendlyCheckpoints;
         this.radius = radius;
         this.height = height;
-        this.checkpointMaterial = checkpointMaterial;
+        this.checkpoints = checkpoints;
         this.friendlySpeed = friendlySpeed;
         this.enemySpeed = enemySpeed;
         this.points = points;
@@ -313,8 +311,8 @@ class PayloadDefinitionImpl extends OwnableGoalDefinitionImpl<Payload> implement
     }
 
     @Override
-    public MaterialPattern getCheckpointMaterial() {
-        return checkpointMaterial;
+    public Set<Vector> getCheckpoints() {
+        return checkpoints;
     }
 
     @Override

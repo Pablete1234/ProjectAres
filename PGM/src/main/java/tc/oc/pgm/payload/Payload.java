@@ -19,6 +19,7 @@ import tc.oc.pgm.goals.SimpleGoal;
 import tc.oc.pgm.goals.events.GoalCompleteEvent;
 import tc.oc.pgm.goals.events.GoalStatusChangeEvent;
 import tc.oc.pgm.match.*;
+import tc.oc.pgm.module.ModuleLoadException;
 import tc.oc.pgm.payload.events.CapturingTeamChangeEvent;
 import tc.oc.pgm.payload.events.CapturingTimeChangeEvent;
 import tc.oc.pgm.payload.events.ControllerChangeEvent;
@@ -68,14 +69,15 @@ public class Payload extends OwnedGoal<PayloadDefinition> {
     // if changing to the neutral state). When this is zero, the capturer is null.
     protected Duration progress = Duration.ZERO;
 
-    public Payload(Match match, PayloadDefinition definition) {
+    public Payload(Match match, PayloadDefinition definition) throws ModuleLoadException {
         super(definition, match);
 
         if(this.definition.getInitialOwner() != null) {
             this.currentOwner = match.needMatchModule(TeamMatchModule.class).team(this.definition.getInitialOwner());
         }
 
-        this.createPayload();
+        this.track = new PayloadTrack(this);
+        this.setupEntities();
 
         this.playerTracker = new PayloadPlayerTracker(match, this.payloadLocation, this.definition.getRadius(), this.definition.getHeight(), this.payloadEntity);
     }
@@ -283,10 +285,7 @@ public class Payload extends OwnedGoal<PayloadDefinition> {
 
         this.payloadEntity.teleport(payloadLocation);
         this.playerTracker.setLocation(payloadLocation);
-
-        Location labelLocation = this.payloadEntity.getLocation().clone();
-        labelLocation.setY(labelLocation.getY() + 1.0);
-        this.labelEntity.teleport(labelLocation);
+        this.labelEntity.teleport(payloadLocation.clone().add(0, 1, 0));
     }
 
     private boolean isInEnemyControl() {
@@ -634,12 +633,7 @@ public class Payload extends OwnedGoal<PayloadDefinition> {
         }
     }
 
-    protected void createPayload() {
-        this.track = new PayloadTrack(this);
-        this.summonMinecart();
-    }
-
-    protected void summonMinecart() {
+    private void setupEntities() {
         Location location = this.getSpawnLocation().toLocation(getMatch().getWorld());
 
         this.payloadLocation = location;

@@ -8,23 +8,34 @@ import org.bukkit.block.BlockState;
 import org.bukkit.material.Rails;
 import org.bukkit.util.Vector;
 import tc.oc.commons.bukkit.util.BlockFaces;
+import tc.oc.pgm.module.ModuleLoadException;
 
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Stream;
+import java.util.stream.Collectors;
 
 public class PayloadTrack {
     private final Payload payload;
     private int size = 0;
     private Path headPath, tailPath, currentPath;
 
-    public PayloadTrack(Payload payload) {
+    PayloadTrack(Payload payload) throws ModuleLoadException {
         this.payload = payload;
 
-        List<BlockState> trackBlocks = getTrack();
-        if (trackBlocks == null) return; // There's no track?
+        BlockState state = payload.getStartingLocation().toLocation(payload.getMatch().getWorld()).getBlock().getState();
+
+        if (!isRails(state.getType())) throw new ModuleLoadException("Payload start position is not a rail.");
+        Rails rail = (Rails) state.getMaterialData();
+
+        // Faces to continue to from spawn
+        List<BlockFace> faces = Arrays.stream(BlockFaces.NEIGHBORS).filter(bf -> hasConnection(rail, bf)).filter(face ->
+                isRails(BlockFaces.getRelative(state, face).getType())).collect(Collectors.toList());
+
+        if (faces.size() != 1) throw new ModuleLoadException("First track has " + faces.size() + " connections, while it should have 1 (connected to : " + faces + ")");
+
+        List<BlockState> trackBlocks = getTrack(state, faces.get(0));
 
         // First block (centered)
         add(toBlockVector(trackBlocks.get(0)), false);
@@ -47,10 +58,14 @@ public class PayloadTrack {
         }
         // Last block (centered)
         add(toBlockVector(trackBlocks.get(trackBlocks.size() - 1)), false);
+
+        if (currentPath == null) throw new ModuleLoadException("Payload start position '" + payload.getStartingLocation() + "' was not found on the track");
+        if (payload.allCheckpoints.size() != payload.getDefinition().getCheckpoints().size())
+            throw new ModuleLoadException("Checkpoints don't match. Found " + payload.allCheckpoints.size() + " checkpoints in the track but there were " + payload.getDefinition().getCheckpoints().size() + " defined");
     }
 
-    public void add(Vector position, boolean checkpoint) {
-        if (size == 0) headPath = tailPath = currentPath = new Path(size++, position, checkpoint,null);
+    private void add(Vector position, boolean checkpoint) {
+        if (size == 0) headPath = tailPath = new Path(size++, position, checkpoint,null);
         else tailPath = tailPath.nextPath = new Path(size++, position, checkpoint, tailPath);
         if (checkpoint) payload.allCheckpoints.add(tailPath);
     }
@@ -132,39 +147,22 @@ public class PayloadTrack {
         }
     }
 
-    private List<BlockState> getTrack() {
-        BlockState state = payload.getStartingLocation().toLocation(payload.getMatch().getWorld()).getBlock().getState();
-
-        //Payload must start on a straight and plain rail
-        if (!isRails(state.getType())) return null;
-        Rails rail = (Rails) state.getMaterialData();
-        if (rail.isCurve() || rail.isOnSlope()) return null;
-
-        // Faces to continue to from spawn
-        BlockFace[] faces = Stream.of(rail.getDirection(), rail.getDirection().getOppositeFace()).filter(face ->
-                isRails(BlockFaces.getRelative(state, face).getType())).toArray(BlockFace[]::new);
-
-        if (faces.length != 1) return null; // Spawn isn't the tail of the track, has more than one connected track (or none)
-
+    private List<BlockState> getTrack(BlockState currBlock, BlockFace currFace) {
         List<BlockState> railBlocks = new LinkedList<>();
+        while (currFace != null) {
+            railBlocks.add(currBlock); // Add last state to list
 
-        BlockState lastState = state;  // Last rail block used, null if no more rails exist
-        BlockFace lastFace = faces[0]; // Last block face used (exit face in lastState)
-        while (lastFace != null) {
-            railBlocks.add(lastState); // Add last state to list
+            Rails rails = (Rails) currBlock.getMaterialData();
+            boolean slopeUp = rails.isOnSlope() && rails.getDirection() == currFace;
 
-            Rails rails = (Rails) lastState.getMaterialData();
-            boolean slopeUp = rails.isOnSlope() && rails.getDirection() == lastFace;
-
-            lastState = BlockFaces.getRelative(lastState, lastFace); // Move to the next rail
-            if (slopeUp) lastState = BlockFaces.getRelative(lastState, BlockFace.UP); // If it's a sloping up rail, move one up
-            if (!isRails(lastState.getType())) { // If can't find a rail on the level, try find one directly down
-                lastState = BlockFaces.getRelative(lastState, BlockFace.DOWN);
-                if (!isRails(lastState.getType())) break; // Still can't find rail, end of the loop
+            currBlock = BlockFaces.getRelative(currBlock, currFace); // Move to the next rail
+            if (slopeUp) currBlock = BlockFaces.getRelative(currBlock, BlockFace.UP); // If it's a sloping up rail, move one up
+            if (!isRails(currBlock.getType())) { // If can't find a rail on the level, try find one directly down
+                currBlock = BlockFaces.getRelative(currBlock, BlockFace.DOWN);
+                if (!isRails(currBlock.getType())) break; // Still can't find rail, end of the loop
             }
-            lastFace = getOtherRailSide((Rails) lastState.getMaterialData(), lastFace.getOppositeFace());
+            currFace = getOtherRailSide((Rails) currBlock.getMaterialData(), currFace.getOppositeFace());
         }
-        railBlocks.add(lastState); // Add last block
         return railBlocks;
     }
 
@@ -175,31 +173,32 @@ public class PayloadTrack {
         return vec;
     }
 
-    private static final Set<Material> CHECKPOINT_RAILS = ImmutableSet.<Material>builder().add(Material.POWERED_RAIL).add(Material.DETECTOR_RAIL).add(Material.POWERED_RAIL).build();
-    private static final Set<Material> ALL_RAILS = ImmutableSet.<Material>builder().add(Material.RAILS).addAll(CHECKPOINT_RAILS).build();
+    private static final Set<Material> ALL_RAILS = ImmutableSet.<Material>builder().add(Material.RAILS).add(Material.POWERED_RAIL).add(Material.DETECTOR_RAIL).add(Material.POWERED_RAIL).build();
     private static boolean isRails(Material material) {
         return ALL_RAILS.contains(material);
     }
 
     private boolean isCheckpoint(BlockState blockState) {
-        Material material = blockState.getMaterial(); // TODO: use coordinates to define checkpoints not block types
-        return payload.getDefinition().getCheckpointMaterial() == null ? CHECKPOINT_RAILS.contains(material) :
-                material.equals(payload.getDefinition().getCheckpointMaterial().getMaterial());
+        return payload.getDefinition().getCheckpoints().stream().anyMatch(check -> blockState.getPosition().coarseEquals(check));
     }
 
     // Takes the input of a rail block data, and the face you are entering, and will return the exit face
     // For example, a curved rail and SOUTH, will return null if the rail never connects south, or EAST / WEST
     private static BlockFace getOtherRailSide(Rails rails, BlockFace face) {
-        boolean curve = rails.isCurve();
+        if (!hasConnection(rails, face)) return null; // Rail doesn't connect to previous rail, can't find next
         BlockFace direction = rails.getDirection();
-        if (curve) direction = direction.getOppositeFace();
+        if (rails.isCurve()) {
+            direction = direction.getOppositeFace();
+            return blockFaceOfMod(direction.getModX() - face.getModX(), direction.getModY() - face.getModY(), direction.getModZ() - face.getModZ());
+        } else return face == direction ? face.getOppositeFace() : direction;
+    }
 
-        if (!(curve ? face.getModX() == direction.getModX() || face.getModZ() == direction.getModZ()
-                : (face == direction || (face.getOppositeFace() == direction)))) {
-            return null; // Rail doesn't connect to previous rail
-        }
-        return curve ? blockFaceOfMod(direction.getModX() - face.getModX(), direction.getModY() - face.getModY(),
-                direction.getModZ() - face.getModZ()) : face == direction ? face.getOppositeFace() : direction;
+    private static boolean hasConnection(Rails rails, BlockFace face) {
+        BlockFace direction = rails.getDirection();
+        if (rails.isCurve()) {
+            direction = direction.getOppositeFace();
+            return face.getModX() == direction.getModX() || face.getModZ() == direction.getModZ();
+        } else return face == direction || face.getOppositeFace() == direction;
     }
 
     private static BlockFace blockFaceOfMod(int x, int y, int z) {

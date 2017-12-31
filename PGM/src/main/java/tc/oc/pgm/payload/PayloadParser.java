@@ -1,9 +1,11 @@
 package tc.oc.pgm.payload;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Range;
 import org.bukkit.util.ImVector;
 import org.bukkit.util.Vector;
 import org.jdom2.Element;
+import tc.oc.parse.xml.XML;
 import tc.oc.pgm.features.FeatureDefinitionParser;
 import tc.oc.pgm.features.FeatureParser;
 import tc.oc.pgm.filters.Filter;
@@ -20,6 +22,8 @@ import tc.oc.pgm.xml.property.PropertyBuilderFactory;
 
 import javax.inject.Inject;
 import java.time.Duration;
+import java.util.HashSet;
+import java.util.Set;
 
 public final class PayloadParser implements FeatureDefinitionParser<PayloadDefinition> {
 
@@ -73,7 +77,6 @@ public final class PayloadParser implements FeatureDefinitionParser<PayloadDefin
         boolean friendlyCheckpoints = XMLUtils.parseBoolean(elPayload.getAttribute("friendly-checkpoints"), false);
         float radius = XMLUtils.parseNumber(elPayload.getAttribute("radius"), Float.class, 5f);
         float height = XMLUtils.parseNumber(elPayload.getAttribute("height"), Float.class, 3f);
-        MaterialPattern checkpointMaterial = XMLUtils.parseMaterialPattern(Node.fromAttr(elPayload, "checkpoint-material"));
         float friendlySpeed = XMLUtils.parseNumber(elPayload.getAttribute("friendly-speed"), Float.class, 0f);
         float enemySpeed = XMLUtils.parseNumber(elPayload.getAttribute("enemy-speed"), Float.class, 1f);
         float points = XMLUtils.parseNumber(elPayload.getAttribute("points"), Float.class, 1f);
@@ -88,11 +91,16 @@ public final class PayloadParser implements FeatureDefinitionParser<PayloadDefin
                                "capture rule",
                                PayloadDefinition.CaptureCondition.EXCLUSIVE);
 
+        Set<Vector> checkpoints = new HashSet<>();
+        for (Node checkpoint : (Iterable<Node>) elPayload.getChildren("checkpoint").stream().map(Node::of)::iterator) {
+            checkpoints.add(XMLUtils.parseVector(checkpoint));
+        }
+
         return new PayloadDefinitionImpl(
             name, required, visible,
             location, spawnLocation, yaw, captureFilter, playerFilter,
             timeToCapture, timeMultiplier, recoveryRate, decayRate, emptyDecayRate, initialOwner, owner, captureCondition,
-            neutralState, friendlyCheckpoints, radius, height, checkpointMaterial, friendlySpeed, enemySpeed, points, friendlyPoints, showProgress
+            neutralState, friendlyCheckpoints, radius, height, ImmutableSet.copyOf(checkpoints), friendlySpeed, enemySpeed, points, friendlyPoints, showProgress
         );
     }
 }
